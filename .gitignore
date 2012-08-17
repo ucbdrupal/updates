@@ -1,0 +1,62 @@
+# Replace EXAMPLE with your site name.
+
+# Drupal #
+##########
+
+
+# Packages #
+############
+*.7z
+*.dmg
+*.gz
+*.iso
+*.jar
+*.rar
+*.tar
+*.zip
+
+# Logs and databases #
+######################
+*.log
+*.sql
+
+# OS generated files #
+######################
+.DS_Store*
+ehthumbs.db
+Icon?
+Thumbs.db
+._*
+
+# Eclipse files #
+#################
+.buildpath
+.project
+.settings/*
+dummy.php
+
+# Emacs files #
+###############
+*~
+\#*#
+\.\#
+
+# Vim generated files #
+######################
+*.un~
+
+# SASS #
+##########
+.sass-cache
+
+# WHITELIST #
+#############
+# If you don't whitelist these and the .gitignore is present when you git add,
+# you will not have some D7 core files under version control
+
+# Make sure the things like modules/file/icons are not ignored by 'Icon?' above
+#!modules/**/icons
+# .sql and .gz that are part of D7 core
+#!modules/update/tests/*.gz
+#!modules/simpletest/tests/**/*.gz
+#!modules/simpletest/files/*.sql
