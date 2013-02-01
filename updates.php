@@ -21,8 +21,6 @@ $egrep = exec('which egrep');
 
 $test_mode = FALSE;
 
-$test_sites = array('pantheon.hrweb.live');
-
 // FUNCTIONS
 
 // MAIN
@@ -97,7 +95,7 @@ while(list($k, $v) = each($cmd_result)) {
     msg($out);
   }
   print "\n";
-  print "Last cron run:\n";
+  print "  Last cron run:\n";
   foreach($v['cron']['out'] as $out) {
     msg($out);
   }
