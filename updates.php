@@ -11,22 +11,47 @@
  */
 
 require_once("lib_util.inc");
-include_once("updates_aliases_pantheon_v1.inc");
 include_once("updates_aliases_pantheon.inc");
 
 // VARIABLES
+$DEBUG = false;
 $drush = exec('which drush');
 $drush_up = 'pm-update --pipe --security-only';
 $egrep = exec('which egrep');
-
-$test_mode = FALSE;
+$supported_sites = array();
 
 // FUNCTIONS
+
+function check_aliases($aliases) {
+  global $drush, $egrep;
+  $dot_drush_aliases = doexec($drush . ' sa', $DEBUG);
+  $errors = array("alias" => 0, "connection" => 0);
+
+  foreach ($aliases as $a) {
+    if (!in_array('@' . $a, $dot_drush_aliases['out'])) {
+      msg("Error: Not found in your drush aliases: $a");
+      $errors['alias']++;
+      continue;
+    }
+  }
+  if ($errors['alias'] > 0) return false;
+
+  foreach ($aliases as $a) {
+    $test = doexec($drush . ' @' . $a . ' ' . "status | $egrep \"Drupal version\"");
+    if (strpos($test['out'][0], 'Drupal') === false) {
+      $errors['connection']++;
+      msg("Error: Could not connect to site alias: $a");
+    }
+  }
+  if ($errors['connection'] > 0) return false;
+
+  return true;
+}
 
 // MAIN
 
 // Command Line Options
-$shortopts = "ht";
+$shortopts = "hs:";
 $longopts = ""; // not supported in < php 5.3
 $options = getopt($shortopts);
 $usage = "
@@ -39,15 +64,15 @@ listed in the update*.inc files
 
 Optional arguments:
 
--t    Run script on just the test site ($test_site)
+-s drushalias.example   Check just the site specified by this alias
 
 ";
 
 
 foreach (array_keys($options) as $o) {
   switch ($o) {
-    case 't':
-      $test_mode = TRUE;
+    case 's':
+      $supported_sites = array($options['s']);
       break;
     case 'h':
       print $usage;
@@ -67,17 +92,14 @@ msg("Working...\n");
 
 //TODO: Make sure they have correct drush alias files
 
-if ($test_mode) {
-  msg("Test mode", TRUE);
-  $supported_sites = $test_sites;
-}
-else {
+if (count($supported_sites) == 0) {
   $supported_sites = array_merge($supported_sites, $supported_sites_v1);
 }
 
+if (!check_aliases($supported_sites)) exit(1);
 
 foreach ($supported_sites as $alias) {
-  $name = doexec($drush . ' @' . $alias . ' vget site_name');
+  $name = doexec($drush . ' @' . $alias . ' vget site_name', $DEBUG);
   $name = str_replace('site_name: "', '', trim($name['out'][0], '"'));
   $cmd_result[$name]['basics'] = doexec($drush . ' @' . $alias . ' ' . "status | $egrep \"Drupal version|Site URI\"");
   $cmd_result[$name]['cron'] = doexec($drush . ' @' . $alias . ' ' . "ws --count=1 \"cron\"");
