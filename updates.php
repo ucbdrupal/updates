@@ -11,17 +11,35 @@
  */
 
 require_once("lib_util.inc");
-include_once("updates_aliases_pantheon.inc");
 
 // VARIABLES
-$DEBUG = false;
+$DEBUG = true;
 $drush = exec('which drush');
 $drush_up = 'pm-update --pipe --security-only';
 $egrep = exec('which egrep');
+$supported_aliases = $_SERVER['HOME'] . '/.drush/supported.aliases.drushrc.php';
 $supported_sites = array();
 
 // FUNCTIONS
 
+/*
+ * Leverage drush site-list option:
+
+supported.aliases.drushrc.php:
+
+<?php
+$aliases['live'] = array(
+  'site-list' => array(
+    '@pantheon.ucbapps.live', 
+    '@pantheon.scholar.live',
+    '@pantheon.ucb-cod.live',
+//    '@sdfkj',
+   )
+);
+
+ */
+
+//TODO: check site-list alias against installed aliases.  make sure they have the aliases they need
 function check_aliases($aliases) {
   global $drush, $egrep;
   $dot_drush_aliases = doexec($drush . ' sa', $DEBUG);
@@ -93,18 +111,48 @@ msg("Working...\n");
 //TODO: Make sure they have correct drush alias files
 
 if (count($supported_sites) == 0) {
-  $supported_sites = array_merge($supported_sites, $supported_sites_v1);
+  if (file_exists($supported_aliases) && is_readable($supported_aliases)) {
+    require_once($supported_aliases);
+  }
+  else {
+    msg("Error: Please add $supported_aliases and make sure it's readable.");
+  }
 }
 
-if (!check_aliases($supported_sites)) exit(1);
 
-foreach ($supported_sites as $alias) {
-  $name = doexec($drush . ' @' . $alias . ' vget site_name', $DEBUG);
-  $name = str_replace('site_name: "', '', trim($name['out'][0], '"'));
-  $cmd_result[$name]['basics'] = doexec($drush . ' @' . $alias . ' ' . "status | $egrep \"Drupal version|Site URI\"");
-  $cmd_result[$name]['cron'] = doexec($drush . ' @' . $alias . ' ' . "ws --count=1 \"cron\"");
-  $cmd_result[$name]['updates'][] = doexec($drush . ' @' . $alias . ' ' . $drush_up);
-}
+
+//if (!check_aliases($supported_sites)) exit(1);
+
+
+/*
+
+**** parse output differently:
+
+explode on ' >> '
+
+[bwood@ucbmbp ~]$ drush @supported -y vget site_name
+You are about to execute 'vget site_name' non-interactively (--yes forced) on all of the following targets:
+  @supported.live
+Continue?  (y/n): y
+pantheon.ucbapps.live >> site_name: "University of California Berkeley Drupal App Server"
+pantheon.ucb-cod.live >> Drush command terminated abnormally due to  [error]
+an unrecoverable error.
+pantheon.scholar.live >> site_name: "Berkeley Scholars"
+ 
+ */
+
+//foreach ($supported_sites as $alias) {
+$alias = "supported";
+$cmd_result['names'] = doexec($drush . ' @' . $alias . ' -y vget site_name', $DEBUG);
+//$name = str_replace('site_name: "', '', trim($name['out'][0], '"'));
+//$name = str_replace('site_name: "', '', trim($name['out'][1]));
+
+$cmd_result['basics'] = doexec($drush . ' @' . $alias . " -y status | $egrep \"Drupal version|Site URI\"");
+$cmd_result['cron'] = doexec($drush . ' @' . $alias . " -y ws --count=1 \"cron\"");
+$cmd_result['updates'][] = doexec($drush . ' @' . $alias . ' -y ' . $drush_up);
+//}
+
+print_r($cmd_result); exit;
 
 //print_r($cmd_result);
 $num_sites_total = count($cmd_result);
@@ -112,14 +160,19 @@ $num_sites_with_updates = 0;
 ksort($cmd_result);
 
 while(list($k, $v) = each($cmd_result)) {
-  msg('**** ' . $k . ' ****');
+  if (strpos($k, ' non-interactively (--yes forced) on all of the following targets') === TRUE) continue;
+  if (strpos($k, 'Continue?  (y/n):') === TRUE) continue;
+  //msg('**** ' . $k . ' ****');
+  msg('*****************************');
   foreach($v['basics']['out'] as $out) {
-    msg($out);
+    if (strpos($out, ' non-interactively (--yes forced) on all of the following targets') === FALSE) msg($out);
+    if (strpos($out, 'Continue?  (y/n):') === TRUE) continue;
   }
   print "\n";
   print "  Last cron run:\n";
   foreach($v['cron']['out'] as $out) {
-    msg($out);
+    if (strpos($out, ' non-interactively (--yes forced) on all of the following targets') === FALSE) msg($out);
+    if (strpos($out, 'Continue?  (y/n):') === TRUE) continue;
   }
   $num_updates_site = count($v['updates'][0]['out']) - 1; //there's always a blank line at the end
   if ($num_updates_site > 0) {
@@ -128,7 +181,8 @@ while(list($k, $v) = each($cmd_result)) {
     foreach($v['updates'] as $upd) {
       if ($upd['return'] !== 0) msg("Error executing a command", TRUE);
       foreach($upd['out'] as $out) {
-        msg($out);
+        if (strpos($out, ' non-interactively (--yes forced) on all of the following targets') === FALSE) msg($out);
+        if (strpos($out, 'Continue?  (y/n):') === TRUE) continue;
       }
     }
   }
